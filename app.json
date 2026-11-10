@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "auth-transition-demo",
+    "name": "navigation-transition-playground",
     "slug": "auth-transition-demo",
     "version": "1.0.0",
     "orientation": "portrait",

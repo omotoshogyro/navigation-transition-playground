@@ -23,6 +23,9 @@ function Segment<T extends string>({
           <Pressable
             key={o.key}
             onPress={() => onChange(o.key)}
+            accessibilityRole="radio"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: active, checked: active }}
             style={[styles.segmentItem, active && { backgroundColor: accent }]}>
             <Text
               numberOfLines={1}

@@ -54,12 +54,14 @@ export default function DemoScreen({ route }: any) {
         <View style={styles.actions}>
           <Pressable
             style={[styles.btn, { backgroundColor: theme.accent }]}
+            accessibilityRole="button"
             onPress={() => navigation.push('Demo', { depth: depth + 1 })}>
             <Text style={styles.btnText}>Push screen {depth + 2}</Text>
           </Pressable>
           {depth === 0 && (
             <Pressable
               style={[styles.btn, styles.btnGhost, { borderColor: theme.fg + '55' }]}
+              accessibilityRole="button"
               onPress={() => navigation.navigate('Tabs')}>
               <Text style={[styles.btnText, { color: theme.fg }]}>Open tabs flow →</Text>
             </Pressable>
@@ -67,6 +69,7 @@ export default function DemoScreen({ route }: any) {
           {navigation.canGoBack() && (
             <Pressable
               style={[styles.btn, styles.btnGhost, { borderColor: theme.fg + '55' }]}
+              accessibilityRole="button"
               onPress={() => navigation.goBack()}>
               <Text style={[styles.btnText, { color: theme.fg }]}>Go back</Text>
             </Pressable>

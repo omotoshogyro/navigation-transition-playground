@@ -17,7 +17,7 @@ is unchanged between v6 and v7, so the transition behaves identically.
 ## Run
 
 ```bash
-cd ~/Desktop/auth-transition-demo
+cd ~/Desktop/Projects/navigation-transition-playground
 npm start
 ```
 
@@ -96,3 +96,41 @@ Fast Refresh.
 - `src/screens/DemoScreen.tsx` — the card (grid background is a deliberate ruler
   for reading the scale)
 - `src/components/Controls.tsx` — the segmented switchers
+
+## Transition presets
+
+**Tabs** (`src/tabs/scenePresets.ts`, `SCENE_PRESETS`). Each screen derives its
+look from one departure value `d` (0 = front and centre, 1 = fully gone), so a
+1 -> 4 switch looks identical to 1 -> 2. Pure maths lives in `sceneMath.ts`.
+
+| Preset | Travel | Fade | Scale / radius / dim |
+|---|---|---|---|
+| `fade8` / `fade12` / `fade20` | 8 / 12 / 20 px | full crossfade | none |
+| `slide` | 100% of screen width | none | none |
+| `depth` | 85% of width | none | 0.86 scale, 28 radius, 0.3 dim |
+
+The finger always covers a full screen width to commit, regardless of visual
+travel. A swipe commits past 50% progress or a fling over 450 px/s. The custom
+tab bar (`TabBar.tsx`) has `tab` roles, labels and selected state so tabs are
+operable without swiping.
+
+**Stack** (`src/transitions`): `AuthTransition` (horizontal, scale + slide, old
+card clears in the first 40%), `ModalTransition` (vertical, opacity = progress),
+`ModalTransitionTuned` (`stock` / `solid` / `solidEased` close variants).
+
+## Development
+
+```bash
+nvm use          # .nvmrc, matches sibling projects
+npm run typecheck
+npm test         # jest-expo
+```
+
+## expo-modules-jsi patch
+
+Sibling projects patch `expo-modules-jsi@57.0.4` (a Swift compile error in
+`JavaScriptCodable+Date.swift`) via patch-package. This project is **not
+exposed**: it runs in Expo Go (no native build), and the lockfile resolves
+`expo-modules-jsi` 57.1.x, which that patch does not target. If you ever do a
+native build (`expo run:ios`) and hit that Swift error, copy
+`../clock-day/patches` and add `patch-package` with a `postinstall` script.

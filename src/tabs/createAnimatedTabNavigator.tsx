@@ -10,56 +10,16 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { scheduleOnRN } from 'react-native-worklets';
 import Animated, {
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  Extrapolation,
   type SharedValue,
 } from 'react-native-reanimated';
+import { SCENE_PRESETS, type SceneConfig } from './scenePresets';
+import { dragProgress, resolveTravel, sceneLook, shouldCommit } from './sceneMath';
 
-export type SceneConfig = {
-  /** scale of a screen once it has fully left */
-  minScale: number;
-  /** corner radius of a screen once it has fully left */
-  radius: number;
-  /** how dark a departed screen goes, 0-1 */
-  dim: number;
-  /** opacity of a departed screen — 0 gives a full crossfade, 1 no fade */
-  fade: number;
-  /**
-   * Visual horizontal travel. Absolute px, or a fraction of screen width.
-   * This is deliberately independent of how far the finger has to move: a 12px
-   * slide still commits on a full-width drag.
-   */
-  travelPx?: number;
-  travelFraction?: number;
-  spring: { damping: number; stiffness: number; mass: number };
-};
-
-const SPRING = { damping: 22, stiffness: 190, mass: 0.9 };
-
-export const SCENE_PRESETS: Record<string, SceneConfig> = {
-  // a hint of directional movement, carried by a crossfade. 12px still reads as
-  // "came from the right" / "came from the left" without the eye tracking a
-  // travelling screen. fade8/fade20 bracket it either side for tuning by thumb.
-  fade8: { minScale: 1, radius: 0, dim: 0, fade: 0, travelPx: 8, spring: SPRING },
-  fade12: { minScale: 1, radius: 0, dim: 0, fade: 0, travelPx: 12, spring: SPRING },
-  fade20: { minScale: 1, radius: 0, dim: 0, fade: 0, travelPx: 20, spring: SPRING },
-  // full pager: a screen's width of travel, no fade
-  slide: { minScale: 1, radius: 0, dim: 0, fade: 1, travelFraction: 1, spring: SPRING },
-  depth: {
-    minScale: 0.86,
-    radius: 28,
-    dim: 0.3,
-    fade: 1,
-    travelFraction: 0.85,
-    spring: SPRING,
-  },
-};
-
-/** past this fling speed a swipe commits regardless of distance dragged */
-const VELOCITY_COMMIT = 450;
+export { SCENE_PRESETS };
+export type { SceneConfig };
 
 type SceneProps = {
   index: number;
@@ -101,15 +61,13 @@ function Scene({ index, t, from, to, dir, config, focused, travel, children }: S
     const d = isTo ? 1 - t.value : t.value;
     const side = isTo ? dir.value : -dir.value;
 
+    const look = sceneLook(d, side, travel, config);
     return {
       display: 'flex' as const,
       zIndex: isTo ? 1 : 0,
-      opacity: interpolate(d, [0, 1], [1, config.fade], Extrapolation.CLAMP),
-      borderRadius: interpolate(d, [0, 1], [0, config.radius], Extrapolation.CLAMP),
-      transform: [
-        { translateX: side * travel * d },
-        { scale: interpolate(d, [0, 1], [1, config.minScale], Extrapolation.CLAMP) },
-      ],
+      opacity: look.opacity,
+      borderRadius: look.borderRadius,
+      transform: [{ translateX: look.translateX }, { scale: look.scale }],
     };
   });
 
@@ -121,7 +79,7 @@ function Scene({ index, t, from, to, dir, config, focused, travel, children }: S
       return { opacity: 0 };
     }
     const d = isTo ? 1 - t.value : t.value;
-    return { opacity: interpolate(d, [0, 1], [0, config.dim], Extrapolation.CLAMP) };
+    return { opacity: sceneLook(d, 0, 0, config).dim };
   });
 
   return (
@@ -169,7 +127,7 @@ function AnimatedTabNavigator({
 
   // How far a screen moves on screen. Deliberately NOT how far the finger has
   // to move — a 12px slide would otherwise mean a 12px drag switches tabs.
-  const travel = config.travelPx ?? width * (config.travelFraction ?? 1);
+  const travel = resolveTravel(config, width);
   // The finger always covers a full screen width to commit, whatever the
   // visual travel is.
   const gestureDistance = width;
@@ -263,9 +221,8 @@ function AnimatedTabNavigator({
       dir.value = wantDir;
       to.value = atEdge ? current.value : candidate;
 
-      const raw = Math.abs(e.translationX) / gestureDistance;
       // rubber band when there is no tab to move to
-      t.value = atEdge ? Math.min(raw * 0.25, 0.25) : Math.min(raw, 1);
+      t.value = dragProgress(e.translationX, gestureDistance, atEdge);
     })
     .onEnd(e => {
       const target = to.value;
@@ -276,10 +233,8 @@ function AnimatedTabNavigator({
 
       // t grows as the finger moves away from the start, in whichever direction
       const tVelocity = (dir.value === 1 ? -e.velocityX : e.velocityX) / gestureDistance;
-      const flung =
-        dir.value === 1 ? e.velocityX < -VELOCITY_COMMIT : e.velocityX > VELOCITY_COMMIT;
 
-      if (t.value > 0.5 || flung) {
+      if (shouldCommit(t.value, dir.value, e.velocityX)) {
         t.value = withSpring(1, { ...config.spring, velocity: tVelocity });
         scheduleOnRN(commitFromGesture, state.routes[target].name);
       } else {
